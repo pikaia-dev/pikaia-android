@@ -1,0 +1,9 @@
+jdk:
+  - openjdk17
+before_install:
+  - ./gradlew clean
+install:
+  - ./gradlew :sdk-bom:publishToMavenLocal
+  - ./gradlew :sdk-core:publishToMavenLocal
+  - ./gradlew :sdk-auth:publishToMavenLocal
+  - ./gradlew :sdk-sync:publishToMavenLocal
