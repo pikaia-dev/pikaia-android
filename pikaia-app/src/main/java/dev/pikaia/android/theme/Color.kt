@@ -1,4 +1,4 @@
-package dev.pikaia.android.ui.theme
+package dev.pikaia.android.theme
 
 import androidx.compose.ui.graphics.Color
 

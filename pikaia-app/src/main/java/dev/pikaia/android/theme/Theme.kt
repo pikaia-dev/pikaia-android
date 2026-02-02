@@ -1,6 +1,5 @@
-package dev.pikaia.android.ui.theme
+package dev.pikaia.android.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

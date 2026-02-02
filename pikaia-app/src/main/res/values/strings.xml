@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Pikaia Android</string>
+
+    <string name="default_error_message">Opps. Something went wrong. Please try again later.</string>
 </resources>

@@ -1,4 +1,4 @@
-package dev.pikaia.android
+package dev.pikaia.android.activity
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,12 +11,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import dev.pikaia.android.ui.theme.PikaiaAndroidTheme
+import dev.pikaia.android.theme.PikaiaAndroidTheme
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         enableEdgeToEdge()
+
         setContent {
             PikaiaAndroidTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
