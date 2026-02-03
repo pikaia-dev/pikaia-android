@@ -13,6 +13,7 @@ material = "1.13.0"
 koin = "4.1.1"
 timber = "5.0.1"
 navigation = "2.9.7"
+icons = "1.7.8"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -38,10 +39,12 @@ koin-androidx-compose-nav = { module = "io.insert-koin:koin-androidx-compose-nav
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 androidx-navigation-runtime-ktx = { group = "androidx.navigation", name = "navigation-runtime-ktx", version.ref = "navigation" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version = "icons" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 android-library = { id = "com.android.library", version.ref = "agp" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 

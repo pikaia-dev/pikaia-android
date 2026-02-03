@@ -6,6 +6,7 @@ import dev.pikaia.android.lib.dispatcher.DefaultDispatcherProvider
 import dev.pikaia.android.lib.dispatcher.DispatcherProvider
 import dev.pikaia.android.lib.store.Action
 import dev.pikaia.android.lib.store.FeatureStoreProxy
+import dev.pikaia.android.state.AppState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
