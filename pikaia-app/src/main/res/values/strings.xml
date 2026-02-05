@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Pikaia Android</string>
+
+    <string name="default_error_message">Oops. Something went wrong. Please try again later.</string>
+
+    <string name="menu_home">Home</string>
+    <string name="menu_profile">Profile</string>
+
+    <string name="profile_screen_title">Profile</string>
+    <string name="profile_logout_btn">Logout</string>
+    <string name="profile_login_btn">Login</string>
+
+    <string name="home_screen_title">Home</string>
+</resources>
