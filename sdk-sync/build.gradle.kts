@@ -32,6 +32,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
     publishing {
         singleVariant("release") {
             withSourcesJar()
@@ -79,6 +84,9 @@ afterEvaluate {
                 artifactId = "sdk-sync"
                 version = project.version.toString()
             }
+        }
+        repositories {
+            mavenLocal()
         }
     }
 }

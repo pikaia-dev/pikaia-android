@@ -88,7 +88,7 @@ class SyncAPI(private val client: APIClient) {
         val endpoint = endpoint<SyncPullResponse>(
             method = HTTPMethod.GET,
             path = "/v1/sync/pull",
-            query = queryParams
+            query = queryParams.toMap()
         )
         return client.send(endpoint)
     }

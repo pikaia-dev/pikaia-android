@@ -170,7 +170,7 @@ class SyncEngine(
      * @return Number of operations pushed
      */
     private suspend fun pushInternal(): Int {
-        val pendingOps = operationQueue.getPending()
+        val pendingOps = operationQueue.getPending(limit = 100)
         if (pendingOps.isEmpty()) {
             Log.d(TAG, "No pending operations to push")
             return 0
@@ -184,9 +184,11 @@ class SyncEngine(
                 idempotencyKey = op.idempotencyKey,
                 entityType = op.entityType,
                 entityId = op.entityId,
-                operation = SyncIntent.fromApiString(op.intent).toApiString(),
+                intent = SyncIntent.fromApiString(op.intent).toApiString(),
                 data = op.payload,
-                baseVersion = null // Could be added later for optimistic concurrency
+                clientTimestamp = kotlinx.datetime.Instant.fromEpochMilliseconds(op.createdAt),
+                baseVersion = op.baseVersion,
+                retryCount = op.retryCount
             )
         }
 
@@ -195,12 +197,11 @@ class SyncEngine(
         val response = syncAPI.push(request)
 
         // Mark operations as synced
-        for (op in pendingOps) {
-            operationQueue.markSynced(op.idempotencyKey)
-        }
+        val syncedKeys = pendingOps.map { it.idempotencyKey }
+        operationQueue.markSynced(syncedKeys)
 
-        Log.i(TAG, "Successfully pushed ${response.processedCount} operations")
-        return response.processedCount
+        Log.i(TAG, "Successfully pushed ${response.results.size} operations")
+        return response.results.size
     }
 
     /**

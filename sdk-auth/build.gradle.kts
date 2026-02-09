@@ -77,5 +77,8 @@ afterEvaluate {
                 version = project.version.toString()
             }
         }
+        repositories {
+            mavenLocal()
+        }
     }
 }
