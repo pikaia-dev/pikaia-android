@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.kover)
 }
 
 android {
@@ -66,6 +67,9 @@ dependencies {
 
     // Tests
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.turbine)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -75,4 +79,29 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                packages(
+                    "dev.pikaia.android.di",
+                    "dev.pikaia.android.navigation",
+                    "dev.pikaia.android.theme",
+                    "dev.pikaia.android.**.ui",
+                    "dev.pikaia.android.**.di"
+                )
+                files(
+                    "*Screen*",
+                    "*Dialog*"
+                )
+                classes(
+                    "*ComposableSingletons*",
+                    "*ViewModel*"
+                )
+                annotatedBy("*Composable")
+            }
+        }
+    }
 }
