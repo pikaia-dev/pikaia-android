@@ -10,9 +10,11 @@ import dev.pikaia.android.sdk.core.networking.interceptors.handle
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.*
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 
@@ -35,7 +37,6 @@ import kotlinx.serialization.json.Json
  */
 class APIClient(
     private val config: APIClientConfig,
-    private val httpClient: HttpClient,
     private val requestInterceptors: List<RequestInterceptor> = emptyList(),
     private val responseInterceptors: List<ResponseInterceptor> = emptyList(),
     private val tokenStore: TokenStore? = null,
@@ -46,6 +47,10 @@ class APIClient(
         ignoreUnknownKeys = true
         isLenient = true
         encodeDefaults = true
+    }
+
+    private val httpClient = HttpClient {
+        install(ContentNegotiation) { json() }
     }
 
     /**
