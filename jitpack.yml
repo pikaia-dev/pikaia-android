@@ -3,7 +3,9 @@ jdk:
 before_install:
   - ./gradlew clean
 install:
-  - ./gradlew :sdk-bom:publishToMavenLocal
-  - ./gradlew :sdk-core:publishToMavenLocal
-  - ./gradlew :sdk-auth:publishToMavenLocal
-  - ./gradlew :sdk-sync:publishToMavenLocal
+  # JitPack sets $VERSION to the requested tag; the modules publish under it so the
+  # rewritten com.github coordinates resolve consistently.
+  - ./gradlew :sdk-bom:publishToMavenLocal -Ppikaia.sdk.version=$VERSION
+  - ./gradlew :sdk-core:publishToMavenLocal -Ppikaia.sdk.version=$VERSION
+  - ./gradlew :sdk-auth:publishToMavenLocal -Ppikaia.sdk.version=$VERSION
+  - ./gradlew :sdk-sync:publishToMavenLocal -Ppikaia.sdk.version=$VERSION

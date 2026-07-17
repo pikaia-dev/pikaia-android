@@ -184,16 +184,105 @@ This project follows the official Kotlin coding conventions. The project uses:
 ## SDK Modules
 
 ### sdk-core
-Core functionality and base classes shared across all SDK modules.
+Networking foundation: `APIClient` (Ktor), declarative `Endpoint`s, non-throwing
+`ApiResult`, typed errors (including 429 with `Retry-After`), interceptor seams, and the
+session-based auth abstractions (`TokenStore`, `AuthProvider`, `RefreshCoordinator`).
 
 ### sdk-auth
-Authentication and authorization functionality.
+The shared auth surface of the backend: magic-link + discovery, mobile provisioning,
+`/me`/profile, phone verification, device linking with long-lived refreshable sessions,
+Keystore-encrypted token storage, and a working 401 → refresh → retry pipeline.
 
 ### sdk-sync
 Data synchronization capabilities.
 
 ### sdk-bom
 Bill of Materials for managing SDK module versions consistently.
+
+## Installing the SDKs
+
+Tagged releases are distributed via [JitPack](https://jitpack.io); local iteration uses
+`mavenLocal` (see [LOCAL_MAVEN_GUIDE.md](LOCAL_MAVEN_GUIDE.md)).
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven("https://jitpack.io")
+    }
+}
+
+// build.gradle.kts
+dependencies {
+    implementation("com.github.pikaia-dev.pikaia-android:sdk-core:<tag>")
+    implementation("com.github.pikaia-dev.pikaia-android:sdk-auth:<tag>")
+}
+```
+
+Versions stay 0.x while the API surface churns during backend alignment.
+
+## Assembling the Auth Stack
+
+The SDK models only the surface shared by every product on this backend stack.
+Product-specific values — the base URL **including the API prefix** (e.g.
+`https://api.example.com/api/v1`) and the QR deep-link scheme — are configuration, never
+SDK constants. Product-specific endpoints belong in the consuming app, built on
+`sdk-core`'s `APIClient`.
+
+```kotlin
+val config = APIClientConfig(baseUrl = "https://api.example.com/api/v1")
+val tokenStore = DataStoreTokenStore(context)   // Keystore-encrypted at rest
+
+// Refresh path: shares the token store for bearer injection, but has no auth
+// provider of its own so a failing refresh can never recurse.
+val refreshClient = APIClient(
+    config = config,
+    requestInterceptors = listOf(AuthTokenInterceptor(tokenStore))
+)
+val authProvider = DeviceSessionAuthProvider(DevicesAPI(refreshClient))
+
+// Main client: bearer injection + automatic 401 → coalesced refresh → retry-once.
+val apiClient = APIClient(
+    config = config,
+    requestInterceptors = listOf(AuthTokenInterceptor(tokenStore)),
+    tokenStore = tokenStore,
+    authProvider = authProvider,
+    refreshCoordinator = DefaultRefreshCoordinator()
+)
+
+val authAPI = AuthAPI(apiClient)
+val devicesAPI = DevicesAPI(apiClient)
+
+// After login (e.g. completing a device link), persist the session:
+devicesAPI.completeLink(request).onSuccess { link ->
+    tokenStore.setSession(
+        AuthSession(
+            sessionJwt = link.sessionJwt,
+            sessionToken = link.sessionToken,
+            sessionExpiresAt = link.sessionExpiresAt,
+            deviceUuid = request.deviceUuid
+        )
+    )
+}
+
+// From here on, calls carry the bearer credential and survive JWT expiry:
+when (val result = authAPI.getMe()) {
+    is ApiResult.Success -> render(result.value)
+    is ApiResult.Failure -> handle(result.error)
+}
+```
+
+**Backups:** exclude the token DataStore file from Auto Backup so tokens never land in
+device backups — in `dataExtractionRules` (API 31+) and `fullBackupContent`:
+
+```xml
+<exclude domain="file" path="datastore/pikaia_tokens.preferences_pb" />
+```
+
+The encryption key lives in the Android Keystore and never leaves the device, so restored
+ciphertext is unreadable either way; the exclusion simply keeps ciphertext out of backups.
 
 ## Contributing
 
