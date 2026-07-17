@@ -1,7 +1,7 @@
 package dev.pikaia.android.sdk.sync.retry
 
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.math.min
 import kotlin.math.pow
 

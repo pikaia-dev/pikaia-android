@@ -4,8 +4,8 @@ import dev.pikaia.android.sdk.sync.data.entity.SyncOperationEntity
 import dev.pikaia.android.sdk.sync.database.SyncOperationDao
 import dev.pikaia.android.sdk.sync.retry.SyncRetryPolicy
 import kotlinx.coroutines.flow.Flow
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * Queue for managing pending sync operations.
