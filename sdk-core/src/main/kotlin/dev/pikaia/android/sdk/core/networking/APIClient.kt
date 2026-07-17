@@ -8,32 +8,35 @@ import dev.pikaia.android.sdk.core.networking.interceptors.ResponseInterceptor
 import dev.pikaia.android.sdk.core.networking.interceptors.adapt
 import dev.pikaia.android.sdk.core.networking.interceptors.handle
 import io.ktor.client.*
-import io.ktor.client.call.*
+import io.ktor.client.engine.*
 import io.ktor.client.plugins.*
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.json
+import io.ktor.http.content.TextContent
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Executes API endpoints using Ktor with optional authentication handling.
  *
  * The client automatically handles:
- * - Token refresh on 401 responses
+ * - Session refresh on 401 responses (retry once, never loops)
  * - Request/response interceptor pipelines
  * - JSON encoding/decoding with ISO8601 dates
- * - Error handling with metadata
+ * - Typed errors, including 429 with `Retry-After`
  *
  * @param config Configuration for the API client
- * @param httpClient The Ktor HTTP client instance
  * @param requestInterceptors List of request interceptors to apply
  * @param responseInterceptors List of response interceptors to apply
- * @param tokenStore Optional token storage for authentication
- * @param authProvider Optional auth provider for token refresh
- * @param refreshCoordinator Coordinator for token refresh operations
+ * @param tokenStore Optional session storage for authentication
+ * @param authProvider Optional auth provider for session refresh
+ * @param refreshCoordinator Coordinator that coalesces concurrent session refreshes
+ * @param engine Optional Ktor engine, injectable for tests (e.g. MockEngine)
  */
 class APIClient(
     private val config: APIClientConfig,
@@ -41,7 +44,8 @@ class APIClient(
     private val responseInterceptors: List<ResponseInterceptor> = emptyList(),
     private val tokenStore: TokenStore? = null,
     private val authProvider: AuthProvider? = null,
-    private val refreshCoordinator: RefreshCoordinator? = null
+    private val refreshCoordinator: RefreshCoordinator? = null,
+    engine: HttpClientEngine? = null
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -49,119 +53,123 @@ class APIClient(
         encodeDefaults = true
     }
 
-    private val httpClient = HttpClient {
-        install(ContentNegotiation) { json() }
+    private val clientSetup: HttpClientConfig<*>.() -> Unit = {
+        expectSuccess = false
+        install(HttpTimeout) {
+            requestTimeoutMillis = config.timeout.inWholeMilliseconds
+            connectTimeoutMillis = config.timeout.inWholeMilliseconds
+            socketTimeoutMillis = config.timeout.inWholeMilliseconds
+        }
     }
 
+    private val httpClient: HttpClient =
+        if (engine != null) HttpClient(engine, clientSetup) else HttpClient(clientSetup)
+
     /**
-     * Send an HTTP request and return the decoded response.
+     * Send an HTTP request and fold the outcome into an [ApiResult].
+     *
+     * This is the single public request path — every failure arrives as a typed
+     * [ApiResult.Failure] instead of an exception.
      *
      * @param endpoint The endpoint definition
-     * @return The decoded response
+     * @return [ApiResult.Success] with the decoded response, or [ApiResult.Failure]
+     */
+    suspend fun <Req, Res> sendResult(endpoint: Endpoint<Req, Res>): ApiResult<Res> =
+        apiResult { send(endpoint) }
+
+    /**
+     * Throwing variant of [sendResult], kept module-internal (and visible to tests).
+     *
      * @throws APIError if the request fails
      */
-    suspend fun <Req, Res> send(endpoint: Endpoint<Req, Res>): Res {
+    internal suspend fun <Req, Res> send(endpoint: Endpoint<Req, Res>): Res {
         return send(endpoint, allowRefresh = true)
     }
 
     /**
      * Internal send method with refresh control.
-     *
-     * @param endpoint The endpoint definition
-     * @param allowRefresh Whether to allow token refresh on 401
-     * @return The decoded response
      */
     private suspend fun <Req, Res> send(
         endpoint: Endpoint<Req, Res>,
         allowRefresh: Boolean
     ): Res {
-        // Build the request
-        val requestBuilder = buildRequest(endpoint)
-
-        // Apply request interceptors
-        val adaptedRequest = requestInterceptors.adapt(requestBuilder)
-
+        val response: HttpResponse
+        val data: String
         try {
-            // Execute the request
-            val response: HttpResponse = httpClient.request(adaptedRequest)
-            val data = response.bodyAsText()
-
-            // Apply response interceptors
+            val requestBuilder = buildRequest(endpoint)
+            val adaptedRequest = requestInterceptors.adapt(requestBuilder)
+            response = httpClient.request(adaptedRequest)
+            data = response.bodyAsText()
             responseInterceptors.handle(response, data, response.request)
-
-            // Handle response based on status code
-            return when (response.status.value) {
-                in 200..299 -> {
-                    // Success - decode response
-                    try {
-                        decodeResponse(endpoint, data)
-                    } catch (e: Exception) {
-                        throw APIError.Decoding(e)
-                    }
-                }
-                401 -> {
-                    // Unauthorized - attempt token refresh if allowed
-                    handleUnauthorized(endpoint, allowRefresh)
-                }
-                in 400..499 -> {
-                    // Client error
-                    throw APIError.Client(
-                        statusCode = response.status.value,
-                        data = data,
-                        metadata = extractMetadata(response)
-                    )
-                }
-                else -> {
-                    // Server error
-                    throw APIError.Server(
-                        statusCode = response.status.value,
-                        data = data,
-                        metadata = extractMetadata(response)
-                    )
-                }
-            }
         } catch (e: CancellationException) {
-            throw APIError.Cancelled
+            throw e
         } catch (e: APIError) {
-            // Re-throw API errors
             throw e
         } catch (e: Exception) {
-            // Wrap other exceptions as transport errors
             throw APIError.Transport(e)
+        }
+
+        return when {
+            response.status.value in 200..299 -> {
+                try {
+                    decodeResponse(endpoint, data)
+                } catch (e: Exception) {
+                    throw APIError.Decoding(e)
+                }
+            }
+            response.status.value == 401 -> handleUnauthorized(endpoint, allowRefresh, response, data)
+            response.status.value == 429 -> throw APIError.RateLimited(
+                retryAfter = response.headers[HttpHeaders.RetryAfter]?.trim()?.toLongOrNull()?.seconds,
+                detail = parseDetail(data),
+                metadata = extractMetadata(response)
+            )
+            else -> throw APIError.Http(
+                statusCode = response.status.value,
+                detail = parseDetail(data),
+                body = data,
+                metadata = extractMetadata(response)
+            )
         }
     }
 
     /**
-     * Handle unauthorized (401) response by attempting token refresh.
+     * Handle an unauthorized (401) response by refreshing the session and retrying once.
      */
     private suspend fun <Req, Res> handleUnauthorized(
         endpoint: Endpoint<Req, Res>,
-        allowRefresh: Boolean
+        allowRefresh: Boolean,
+        response: HttpResponse,
+        data: String
     ): Res {
-        if (!allowRefresh) {
-            throw APIError.Unauthorized
+        val store = tokenStore
+        val provider = authProvider
+        val coordinator = refreshCoordinator
+        if (!allowRefresh || store == null || provider == null || coordinator == null) {
+            throw unauthorizedError(response, data)
         }
 
-        val store = tokenStore ?: throw APIError.Unauthorized
-        val provider = authProvider ?: throw APIError.Unauthorized
-        val coordinator = refreshCoordinator ?: throw APIError.Unauthorized
+        val session = store.getSession() ?: throw unauthorizedError(response, data)
 
-        val refreshToken = store.getRefreshToken() ?: throw APIError.Unauthorized
-
-        // Attempt token refresh
-        val (newAccessToken, newRefreshToken) = try {
-            coordinator.refresh(refreshToken, provider)
+        val refreshed = try {
+            coordinator.refresh(session, provider)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             throw APIError.RefreshFailed(e)
         }
 
-        // Update tokens in store
-        val updatedRefreshToken = newRefreshToken ?: refreshToken
-        store.setTokens(newAccessToken, updatedRefreshToken)
+        store.setSession(refreshed)
 
-        // Retry the request once (with refresh disabled to prevent infinite loop)
+        // Retry the request once, with refresh disabled to prevent a refresh loop
         return send(endpoint, allowRefresh = false)
     }
+
+    private fun unauthorizedError(response: HttpResponse, data: String) = APIError.Http(
+        statusCode = HttpStatusCode.Unauthorized.value,
+        detail = parseDetail(data),
+        body = data,
+        metadata = extractMetadata(response)
+    )
 
     /**
      * Build an HTTP request from an endpoint definition.
@@ -170,42 +178,27 @@ class APIClient(
         endpoint: Endpoint<Req, Res>
     ): HttpRequestBuilder {
         return HttpRequestBuilder().apply {
-            // Set method
             method = endpoint.toKtorMethod()
 
-            // Build URL
             url {
                 takeFrom(config.baseUrl)
-
-                // Append path (remove leading slash if present)
-                val cleanPath = endpoint.path.removePrefix("/")
-                appendPathSegments(cleanPath.split("/"))
-
-                // Add query parameters
+                appendPathSegments(endpoint.path.removePrefix("/").split("/"))
                 endpoint.query.forEach { (key, value) ->
                     parameters.append(key, value)
                 }
             }
 
-            // Set default headers from config
-            config.defaultHeaders.forEach { (key, value) ->
-                headers.append(key, value)
-            }
-
-            // Set endpoint-specific headers (override defaults)
-            endpoint.headers.forEach { (key, value) ->
-                headers[key] = value
-            }
-
-            // Set body if present
-            endpoint.body?.let { body ->
-                if (body !is EmptyBody) {
-                    setBody(body)
-                    // Ensure Content-Type is set
-                    if (headers[HttpHeaders.ContentType] == null) {
-                        headers[HttpHeaders.ContentType] = "application/json"
-                    }
+            // Content-Type travels with the body content; Ktor rejects it as a raw header
+            (config.defaultHeaders + endpoint.headers).forEach { (key, value) ->
+                if (!key.equals(HttpHeaders.ContentType, ignoreCase = true)) {
+                    headers[key] = value
                 }
+            }
+
+            val body = endpoint.body
+            val serializer = endpoint.requestSerializer
+            if (body != null && serializer != null) {
+                setBody(TextContent(json.encodeToString(serializer, body), ContentType.Application.Json))
             }
         }
     }
@@ -217,19 +210,28 @@ class APIClient(
         endpoint: Endpoint<Req, Res>,
         data: String
     ): Res {
-        // Handle empty response
-        if (endpoint.responseSerializer.descriptor.serialName == "dev.pikaia.android.sdk.core.networking.EmptyResponse") {
+        if (endpoint.responseSerializer.descriptor.serialName ==
+            EmptyResponse.serializer().descriptor.serialName
+        ) {
             @Suppress("UNCHECKED_CAST")
             return EmptyResponse as Res
         }
 
-        // Handle empty data for non-empty response types
-        if (data.isEmpty() || data.isBlank()) {
-            throw IllegalStateException("Expected response data but got empty body")
-        }
+        check(data.isNotBlank()) { "Expected response body but got an empty one" }
 
-        // Decode JSON
         return json.decodeFromString(endpoint.responseSerializer, data)
+    }
+
+    /**
+     * Parse the backend's uniform `{"detail": "..."}` error body.
+     */
+    private fun parseDetail(body: String?): String? {
+        if (body.isNullOrBlank()) return null
+        return try {
+            json.parseToJsonElement(body).jsonObject["detail"]?.jsonPrimitive?.contentOrNull
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /**
@@ -237,13 +239,10 @@ class APIClient(
      */
     private fun extractMetadata(response: HttpResponse): APIErrorMetadata {
         val headers = mutableMapOf<String, String>()
-
-        // Convert headers to a simple map
         response.headers.forEach { key, values ->
             headers[key] = values.joinToString(", ")
         }
 
-        // Extract request ID (check common header names)
         val requestId = response.headers["X-Request-Id"]
             ?: response.headers["X-Request-ID"]
             ?: response.headers["Request-Id"]

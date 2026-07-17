@@ -1,6 +1,6 @@
 package dev.pikaia.android.sdk.sync.retry
 
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

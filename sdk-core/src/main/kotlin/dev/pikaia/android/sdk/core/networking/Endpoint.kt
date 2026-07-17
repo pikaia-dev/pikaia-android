@@ -7,23 +7,16 @@ import kotlinx.serialization.serializer
 /**
  * A description of a single API operation.
  *
- * Endpoints are type-safe definitions of HTTP requests that include:
- * - HTTP method (GET, POST, etc.)
- * - URL path
- * - Query parameters
- * - Headers
- * - Request body (optional)
- * - Response type and deserializer
+ * Paths are relative to [APIClientConfig.baseUrl], which carries any API prefix — e.g. a
+ * baseUrl of `https://api.example.com/api/v1` combined with a path of `auth/me`.
  *
- * @param Req Request body type
- * @param Res Response type
- *
- * @param method HTTP method to use
- * @param path Relative path (e.g., "/v1/users")
+ * @param method HTTP method
+ * @param path Path relative to the client's base URL
  * @param query Query parameters
- * @param headers Additional headers for this endpoint
- * @param body Optional request body
- * @param responseSerializer Serializer for the response type
+ * @param headers Endpoint-specific headers (override the client's defaults)
+ * @param body Request body, serialized as JSON via [requestSerializer]
+ * @param requestSerializer Serializer for [body]; null for bodiless requests
+ * @param responseSerializer Serializer for the response body
  */
 data class Endpoint<Req, Res>(
     val method: HTTPMethod,
@@ -31,11 +24,9 @@ data class Endpoint<Req, Res>(
     val query: Map<String, String> = emptyMap(),
     val headers: Map<String, String> = emptyMap(),
     val body: Req? = null,
+    val requestSerializer: KSerializer<Req>? = null,
     val responseSerializer: KSerializer<Res>
 ) {
-    /**
-     * Convert HTTPMethod to Ktor's HttpMethod.
-     */
     fun toKtorMethod(): HttpMethod = when (method) {
         HTTPMethod.GET -> HttpMethod.Get
         HTTPMethod.POST -> HttpMethod.Post
@@ -46,30 +37,38 @@ data class Endpoint<Req, Res>(
 }
 
 /**
- * Create an endpoint with automatic serializer inference for the response type.
- *
- * This is a convenience function that uses Kotlin's reified type parameters
- * to automatically obtain the serializer for the response type.
- *
- * @param Res Response type (must be serializable)
- * @param method HTTP method
- * @param path URL path
- * @param query Query parameters
- * @param headers Additional headers
- * @param body Request body
- * @return An endpoint with the inferred response serializer
+ * Create a bodiless endpoint.
  */
 inline fun <reified Res> endpoint(
     method: HTTPMethod,
     path: String,
     query: Map<String, String> = emptyMap(),
-    headers: Map<String, String> = emptyMap(),
-    body: Any? = null
-): Endpoint<Any, Res> = Endpoint(
+    headers: Map<String, String> = emptyMap()
+): Endpoint<Unit, Res> = Endpoint(
+    method = method,
+    path = path,
+    query = query,
+    headers = headers,
+    body = null,
+    requestSerializer = null,
+    responseSerializer = serializer()
+)
+
+/**
+ * Create an endpoint with a JSON request body.
+ */
+inline fun <reified Req : Any, reified Res> endpoint(
+    method: HTTPMethod,
+    path: String,
+    body: Req,
+    query: Map<String, String> = emptyMap(),
+    headers: Map<String, String> = emptyMap()
+): Endpoint<Req, Res> = Endpoint(
     method = method,
     path = path,
     query = query,
     headers = headers,
     body = body,
+    requestSerializer = serializer(),
     responseSerializer = serializer()
 )

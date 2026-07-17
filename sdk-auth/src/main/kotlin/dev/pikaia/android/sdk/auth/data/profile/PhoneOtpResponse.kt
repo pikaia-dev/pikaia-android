@@ -1,15 +1,15 @@
 package dev.pikaia.android.sdk.auth.data.profile
 
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Response from sending phone OTP.
+ * Response after requesting a phone OTP.
  *
- * @param methodId Method ID for OTP verification
+ * @param success Whether the operation succeeded
+ * @param message Human-readable status message
  */
 @Serializable
 data class PhoneOtpResponse(
-    @SerialName("method_id")
-    val methodId: String
+    val success: Boolean,
+    val message: String
 )

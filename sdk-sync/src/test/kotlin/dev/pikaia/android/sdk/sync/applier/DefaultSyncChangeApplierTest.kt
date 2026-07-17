@@ -3,7 +3,7 @@ package dev.pikaia.android.sdk.sync.applier
 import dev.pikaia.android.sdk.sync.data.response.SyncChange
 import dev.pikaia.android.sdk.sync.queue.SyncIntent
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before

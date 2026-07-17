@@ -1,60 +1,28 @@
 package dev.pikaia.android.sdk.core.auth
 
 /**
- * Storage abstraction for authentication tokens.
+ * Storage abstraction for the authenticated session.
  *
- * Implementations should provide secure storage for tokens, such as
- * EncryptedSharedPreferences or other encrypted storage mechanisms.
- *
- * This interface will be fully implemented in sdk-auth module.
+ * Implementations must persist the session securely (see sdk-auth's `DataStoreTokenStore`
+ * for a Keystore-encrypted implementation) and be safe to call from concurrent coroutines.
  */
 interface TokenStore {
     /**
-     * Get the current access token.
+     * Get the currently stored session.
      *
-     * @return Access token, or null if not set
+     * @return The session, or null when no user is logged in
      */
-    suspend fun getAccessToken(): String?
+    suspend fun getSession(): AuthSession?
 
     /**
-     * Get the current refresh token.
+     * Replace the stored session.
      *
-     * @return Refresh token, or null if not set
+     * @param session The new session to persist
      */
-    suspend fun getRefreshToken(): String?
+    suspend fun setSession(session: AuthSession)
 
     /**
-     * Get the current device token.
-     *
-     * @return Device token, or null if not set
-     */
-    suspend fun getDeviceToken(): String?
-
-    /**
-     * Get the current device refresh token.
-     *
-     * @return Device refresh token, or null if not set
-     */
-    suspend fun getDeviceRefreshToken(): String?
-
-    /**
-     * Set access and refresh tokens.
-     *
-     * @param access Access token
-     * @param refresh Refresh token
-     */
-    suspend fun setTokens(access: String, refresh: String)
-
-    /**
-     * Set device and device refresh tokens.
-     *
-     * @param device Device token
-     * @param refresh Device refresh token
-     */
-    suspend fun setDeviceTokens(device: String, refresh: String)
-
-    /**
-     * Clear all stored tokens.
+     * Remove any stored session.
      */
     suspend fun clear()
 }

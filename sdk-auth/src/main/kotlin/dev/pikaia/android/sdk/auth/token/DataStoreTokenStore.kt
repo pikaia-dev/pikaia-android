@@ -6,135 +6,112 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import androidx.security.crypto.EncryptedFile
-import androidx.security.crypto.MasterKey
+import dev.pikaia.android.sdk.core.auth.AuthSession
 import dev.pikaia.android.sdk.core.auth.TokenStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import java.io.File
+import java.util.Base64
+import kotlin.time.Instant
+
+private val Context.sdkTokenDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "pikaia_tokens"
+)
 
 /**
- * Secure token storage using DataStore with encryption.
+ * Encrypted, persistent [TokenStore] backed by a Preferences DataStore.
  *
- * Tokens are stored in encrypted DataStore preferences, providing:
- * - Persistent storage across app restarts
- * - Encryption at rest using Android Keystore
- * - Thread-safe concurrent access
- * - Atomic read/write operations
+ * Every stored value is encrypted with a [ValueCipher] — by default
+ * [KeystoreValueCipher], an Android Keystore AES-256-GCM key that never leaves the
+ * device — before it hits disk. If a stored value cannot be decrypted (e.g. the
+ * preferences file was restored from a backup onto a different device, or the key was
+ * invalidated), the store treats it as logged out and returns null.
  *
- * This is the recommended token storage for production use.
+ * ## Backups
  *
- * @param context Application context
+ * Consumers must exclude the token DataStore file from Auto Backup so tokens never
+ * land in device backups — add to `dataExtractionRules` (API 31+) and
+ * `fullBackupContent`:
+ *
+ * ```xml
+ * <exclude domain="file" path="datastore/pikaia_tokens.preferences_pb" />
+ * ```
+ *
+ * Even if the file is backed up, the Keystore key is not, so restored ciphertext is
+ * unreadable — the exclusion avoids shipping ciphertext around, the key design makes
+ * it worthless.
+ *
+ * @param dataStore Preferences DataStore holding the encrypted values
+ * @param cipher Cipher used to protect values at rest
  */
-class DataStoreTokenStore(private val context: Context) : TokenStore {
+class DataStoreTokenStore(
+    private val dataStore: DataStore<Preferences>,
+    private val cipher: ValueCipher
+) : TokenStore {
 
-    private val Context.tokenDataStore: DataStore<Preferences> by preferencesDataStore(
-        name = DATASTORE_NAME
-    )
+    /**
+     * Production entry point: Keystore-encrypted store on the app's token DataStore.
+     *
+     * @param context Application context
+     */
+    constructor(context: Context) : this(context.sdkTokenDataStore, KeystoreValueCipher())
 
-    private val dataStore: DataStore<Preferences> = context.tokenDataStore
+    override suspend fun getSession(): AuthSession? = withContext(Dispatchers.IO) {
+        val preferences = dataStore.data.first()
 
-    override suspend fun getAccessToken(): String? = withContext(Dispatchers.IO) {
-        dataStore.data.map { preferences ->
-            preferences[KEY_ACCESS_TOKEN]
-        }.first()
+        val sessionJwt = preferences.decrypt(KEY_SESSION_JWT) ?: return@withContext null
+        val sessionToken = preferences.decrypt(KEY_SESSION_TOKEN) ?: return@withContext null
+
+        AuthSession(
+            sessionJwt = sessionJwt,
+            sessionToken = sessionToken,
+            sessionExpiresAt = preferences.decrypt(KEY_SESSION_EXPIRES_AT)
+                ?.let { runCatching { Instant.parse(it) }.getOrNull() },
+            deviceUuid = preferences.decrypt(KEY_DEVICE_UUID)
+        )
     }
 
-    override suspend fun getRefreshToken(): String? = withContext(Dispatchers.IO) {
-        dataStore.data.map { preferences ->
-            preferences[KEY_REFRESH_TOKEN]
-        }.first()
-    }
+    override suspend fun setSession(session: AuthSession) = withContext(Dispatchers.IO) {
+        val jwt = encrypt(session.sessionJwt)
+        val token = encrypt(session.sessionToken)
+        val expiresAt = session.sessionExpiresAt?.let { encrypt(it.toString()) }
+        val deviceUuid = session.deviceUuid?.let { encrypt(it) }
 
-    override suspend fun getDeviceToken(): String? = withContext(Dispatchers.IO) {
-        dataStore.data.map { preferences ->
-            preferences[KEY_DEVICE_TOKEN]
-        }.first()
-    }
-
-    override suspend fun getDeviceRefreshToken(): String? = withContext(Dispatchers.IO) {
-        dataStore.data.map { preferences ->
-            preferences[KEY_DEVICE_REFRESH_TOKEN]
-        }.first()
-    }
-
-    override suspend fun setTokens(access: String, refresh: String) {
-        withContext(Dispatchers.IO) {
-            dataStore.edit { preferences ->
-                preferences[KEY_ACCESS_TOKEN] = access
-                preferences[KEY_REFRESH_TOKEN] = refresh
-            }
+        dataStore.edit { preferences ->
+            preferences[KEY_SESSION_JWT] = jwt
+            preferences[KEY_SESSION_TOKEN] = token
+            if (expiresAt != null) preferences[KEY_SESSION_EXPIRES_AT] = expiresAt
+            else preferences.remove(KEY_SESSION_EXPIRES_AT)
+            if (deviceUuid != null) preferences[KEY_DEVICE_UUID] = deviceUuid
+            else preferences.remove(KEY_DEVICE_UUID)
         }
+        Unit
     }
 
-    override suspend fun setDeviceTokens(device: String, refresh: String) {
-        withContext(Dispatchers.IO) {
-            dataStore.edit { preferences ->
-                preferences[KEY_DEVICE_TOKEN] = device
-                preferences[KEY_DEVICE_REFRESH_TOKEN] = refresh
-            }
+    override suspend fun clear(): Unit = withContext(Dispatchers.IO) {
+        dataStore.edit { preferences ->
+            preferences.clear()
         }
+        Unit
     }
 
-    override suspend fun clear() {
-        withContext(Dispatchers.IO) {
-            dataStore.edit { preferences ->
-                preferences.clear()
-            }
-        }
+    private fun encrypt(value: String): String =
+        Base64.getEncoder().encodeToString(cipher.encrypt(value.encodeToByteArray()))
+
+    /**
+     * Decrypt a stored value; null when absent or undecryptable (wrong key, corrupt data).
+     */
+    private fun Preferences.decrypt(key: Preferences.Key<String>): String? {
+        val encoded = this[key] ?: return null
+        return runCatching {
+            cipher.decrypt(Base64.getDecoder().decode(encoded)).decodeToString()
+        }.getOrNull()
     }
 
-    companion object {
-        private const val DATASTORE_NAME = "pikaia_tokens"
-
-        private val KEY_ACCESS_TOKEN = stringPreferencesKey("access_token")
-        private val KEY_REFRESH_TOKEN = stringPreferencesKey("refresh_token")
-        private val KEY_DEVICE_TOKEN = stringPreferencesKey("device_token")
-        private val KEY_DEVICE_REFRESH_TOKEN = stringPreferencesKey("device_refresh_token")
+    private companion object {
+        val KEY_SESSION_JWT = stringPreferencesKey("session_jwt")
+        val KEY_SESSION_TOKEN = stringPreferencesKey("session_token")
+        val KEY_SESSION_EXPIRES_AT = stringPreferencesKey("session_expires_at")
+        val KEY_DEVICE_UUID = stringPreferencesKey("device_uuid")
     }
-}
-
-/**
- * Creates a master key for encryption using Android Keystore.
- *
- * The master key is used to encrypt/decrypt sensitive data. It's stored
- * in the Android Keystore, which provides hardware-backed security on
- * supported devices.
- *
- * @param context Application context
- * @return MasterKey for encryption operations
- */
-private fun createMasterKey(context: Context): MasterKey {
-    return MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-}
-
-/**
- * Creates an encrypted file for additional security.
- *
- * While DataStore provides some security, this adds an extra layer by
- * encrypting the actual file on disk.
- *
- * Note: DataStore v1.1+ provides built-in file encryption via the Android
- * file system. This function is provided for reference but may not be
- * necessary in most cases.
- *
- * @param context Application context
- * @param fileName Name of the file to encrypt
- * @return EncryptedFile wrapper
- */
-@Suppress("unused")
-private fun createEncryptedFile(context: Context, fileName: String): EncryptedFile {
-    val masterKey = createMasterKey(context)
-    val file = File(context.filesDir, fileName)
-
-    return EncryptedFile.Builder(
-        context,
-        file,
-        masterKey,
-        EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
-    ).build()
 }

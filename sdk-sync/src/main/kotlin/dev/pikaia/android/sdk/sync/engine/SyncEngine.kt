@@ -194,7 +194,7 @@ class SyncEngine(
 
         // Push to server
         val request = SyncPushRequest(operations)
-        val response = syncAPI.push(request)
+        val response = syncAPI.push(request).getOrThrow()
 
         // Mark operations as synced
         val syncedKeys = pendingOps.map { it.idempotencyKey }
@@ -225,7 +225,7 @@ class SyncEngine(
                 since = cursor,
                 entityTypes = entityTypes,
                 limit = limit
-            )
+            ).getOrThrow()
 
             // Handle force resync flag from server
             if (response.forceResync) {

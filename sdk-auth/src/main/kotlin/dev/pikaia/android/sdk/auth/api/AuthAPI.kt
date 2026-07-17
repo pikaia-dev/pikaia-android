@@ -1,30 +1,38 @@
 package dev.pikaia.android.sdk.auth.api
 
-import dev.pikaia.android.sdk.auth.data.auth.*
+import dev.pikaia.android.sdk.auth.data.auth.DiscoveryCreateOrgRequest
+import dev.pikaia.android.sdk.auth.data.auth.DiscoveryExchangeRequest
+import dev.pikaia.android.sdk.auth.data.auth.MagicLinkAuthenticateRequest
+import dev.pikaia.android.sdk.auth.data.auth.MagicLinkAuthenticateResponse
+import dev.pikaia.android.sdk.auth.data.auth.MagicLinkSendRequest
 import dev.pikaia.android.sdk.auth.data.common.MessageResponse
-import dev.pikaia.android.sdk.auth.data.profile.*
-import dev.pikaia.android.sdk.auth.data.session.*
+import dev.pikaia.android.sdk.auth.data.profile.MeResponse
+import dev.pikaia.android.sdk.auth.data.profile.PhoneOtpResponse
+import dev.pikaia.android.sdk.auth.data.profile.SendPhoneOtpRequest
+import dev.pikaia.android.sdk.auth.data.profile.UpdateProfileRequest
+import dev.pikaia.android.sdk.auth.data.profile.UserInfo
+import dev.pikaia.android.sdk.auth.data.profile.VerifyPhoneOtpRequest
+import dev.pikaia.android.sdk.auth.data.session.MobileProvisionRequest
+import dev.pikaia.android.sdk.auth.data.session.SessionResponse
 import dev.pikaia.android.sdk.core.networking.APIClient
-import dev.pikaia.android.sdk.core.networking.EmptyBody
+import dev.pikaia.android.sdk.core.networking.ApiResult
 import dev.pikaia.android.sdk.core.networking.HTTPMethod
 import dev.pikaia.android.sdk.core.networking.endpoint
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 
 /**
- * Authentication API client providing all auth-related endpoints.
+ * Authentication API client covering the backend's shared auth surface.
  *
  * This API handles:
  * - Magic link authentication flow
  * - Organization discovery and selection
- * - Device and mobile provisioning
- * - Session management
+ * - Mobile provisioning
+ * - Session management (`/me`, logout)
  * - Profile updates
  * - Phone verification
  *
- * Each endpoint provides two variants:
- * - Suspend function for direct await usage
- * - Flow-based function for reactive streams
+ * Paths are relative — the [APIClient]'s `baseUrl` must carry the backend's API prefix
+ * (e.g. `https://api.example.com/api/v1`). Device linking and session refresh live in
+ * `DevicesAPI`.
  *
  * @param client The underlying API client for making HTTP requests
  */
@@ -40,55 +48,33 @@ class AuthAPI(private val client: APIClient) {
      * @param request Email address to send the link to
      * @return Message confirming the email was sent
      */
-    suspend fun sendMagicLink(request: MagicLinkSendRequest): MessageResponse {
-        val endpoint = endpoint<MessageResponse>(
+    suspend fun sendMagicLink(request: MagicLinkSendRequest): ApiResult<MessageResponse> {
+        val endpoint = endpoint<MagicLinkSendRequest, MessageResponse>(
             method = HTTPMethod.POST,
-            path = "/v1/auth/magic-link/send",
+            path = "auth/magic-link/send",
             body = request
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Send a magic link to the specified email address (Flow variant).
-     *
-     * @param request Email address to send the link to
-     * @return Flow emitting the message response
-     */
-    fun sendMagicLinkFlow(request: MagicLinkSendRequest): Flow<MessageResponse> = flow {
-        emit(sendMagicLink(request))
+        return client.sendResult(endpoint)
     }
 
     /**
      * Authenticate using a magic link token.
      *
-     * Returns an interim session token and list of organizations.
-     * Client must then select an organization and exchange the token.
+     * Returns an intermediate session token and the list of discovered organizations.
+     * The client must then select (or create) an organization and exchange the token.
      *
      * @param request Magic link token from the email
-     * @return Interim session and organization list
+     * @return Intermediate session and discovered organizations
      */
     suspend fun authenticateMagicLink(
         request: MagicLinkAuthenticateRequest
-    ): MagicLinkAuthenticateResponse {
-        val endpoint = endpoint<MagicLinkAuthenticateResponse>(
+    ): ApiResult<MagicLinkAuthenticateResponse> {
+        val endpoint = endpoint<MagicLinkAuthenticateRequest, MagicLinkAuthenticateResponse>(
             method = HTTPMethod.POST,
-            path = "/v1/auth/magic-link/authenticate",
+            path = "auth/magic-link/authenticate",
             body = request
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Authenticate using a magic link token (Flow variant).
-     *
-     * @param request Magic link token from the email
-     * @return Flow emitting the interim session and organization list
-     */
-    fun authenticateMagicLinkFlow(
-        request: MagicLinkAuthenticateRequest
-    ): Flow<MagicLinkAuthenticateResponse> = flow {
-        emit(authenticateMagicLink(request))
+        return client.sendResult(endpoint)
     }
 
     // ========================================================================
@@ -98,102 +84,38 @@ class AuthAPI(private val client: APIClient) {
     /**
      * Create a new organization during the discovery flow.
      *
-     * Uses the interim session token from magic link authentication.
+     * Uses the intermediate session token from magic link authentication.
      *
-     * @param request Organization creation request with interim token
+     * @param request Organization creation request with intermediate token
      * @return Full session for the new organization
      */
     suspend fun createOrganization(
         request: DiscoveryCreateOrgRequest
-    ): SessionResponse {
-        val endpoint = endpoint<SessionResponse>(
+    ): ApiResult<SessionResponse> {
+        val endpoint = endpoint<DiscoveryCreateOrgRequest, SessionResponse>(
             method = HTTPMethod.POST,
-            path = "/v1/auth/discovery/create-org",
+            path = "auth/discovery/create-org",
             body = request
         )
-        return client.send(endpoint)
+        return client.sendResult(endpoint)
     }
 
     /**
-     * Create a new organization during the discovery flow (Flow variant).
+     * Exchange an intermediate session token for a full session with the selected
+     * organization.
      *
-     * @param request Organization creation request with interim token
-     * @return Flow emitting the full session
-     */
-    fun createOrganizationFlow(
-        request: DiscoveryCreateOrgRequest
-    ): Flow<SessionResponse> = flow {
-        emit(createOrganization(request))
-    }
-
-    /**
-     * Exchange interim session token for a full session with selected organization.
-     *
-     * @param request Exchange request with interim token and organization ID
+     * @param request Exchange request with intermediate token and organization ID
      * @return Full session for the selected organization
      */
     suspend fun exchangeSession(
         request: DiscoveryExchangeRequest
-    ): SessionResponse {
-        val endpoint = endpoint<SessionResponse>(
+    ): ApiResult<SessionResponse> {
+        val endpoint = endpoint<DiscoveryExchangeRequest, SessionResponse>(
             method = HTTPMethod.POST,
-            path = "/v1/auth/discovery/exchange",
+            path = "auth/discovery/exchange",
             body = request
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Exchange interim session token for a full session (Flow variant).
-     *
-     * @param request Exchange request with interim token and organization ID
-     * @return Flow emitting the full session
-     */
-    fun exchangeSessionFlow(
-        request: DiscoveryExchangeRequest
-    ): Flow<SessionResponse> = flow {
-        emit(exchangeSession(request))
-    }
-
-    // ========================================================================
-    // Device Provisioning
-    // ========================================================================
-
-    /**
-     * Provision a device with a shadow user.
-     *
-     * Shadow users enable offline-first apps to sync before email verification.
-     * Requires a mobile API key passed in the X-Mobile-API-Key header.
-     *
-     * @param request Device provisioning details
-     * @param mobileAPIKey Mobile API key for authentication
-     * @return Device token and user context
-     */
-    suspend fun provisionDevice(
-        request: DeviceProvisionRequest,
-        mobileAPIKey: String
-    ): DeviceProvisionResponse {
-        val endpoint = endpoint<DeviceProvisionResponse>(
-            method = HTTPMethod.POST,
-            path = "/v1/auth/device/provision",
-            headers = mapOf("X-Mobile-API-Key" to mobileAPIKey),
-            body = request
-        )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Provision a device with a shadow user (Flow variant).
-     *
-     * @param request Device provisioning details
-     * @param mobileAPIKey Mobile API key for authentication
-     * @return Flow emitting the device token and user context
-     */
-    fun provisionDeviceFlow(
-        request: DeviceProvisionRequest,
-        mobileAPIKey: String
-    ): Flow<DeviceProvisionResponse> = flow {
-        emit(provisionDevice(request, mobileAPIKey))
+        return client.sendResult(endpoint)
     }
 
     // ========================================================================
@@ -201,40 +123,25 @@ class AuthAPI(private val client: APIClient) {
     // ========================================================================
 
     /**
-     * Provision a mobile app session.
+     * Provision a mobile user and return a full session.
      *
-     * Simpler than device provisioning - creates a full session immediately.
-     * Requires a mobile API key passed in the X-Mobile-API-Key header.
+     * Requires a mobile API key passed in the `X-Mobile-API-Key` header.
      *
      * @param request Mobile provisioning details
-     * @param mobileAPIKey Mobile API key for authentication
+     * @param mobileApiKey Mobile API key for authentication
      * @return Full session response
      */
     suspend fun provisionMobile(
         request: MobileProvisionRequest,
-        mobileAPIKey: String
-    ): SessionResponse {
-        val endpoint = endpoint<SessionResponse>(
+        mobileApiKey: String
+    ): ApiResult<SessionResponse> {
+        val endpoint = endpoint<MobileProvisionRequest, SessionResponse>(
             method = HTTPMethod.POST,
-            path = "/v1/auth/mobile/provision",
-            headers = mapOf("X-Mobile-API-Key" to mobileAPIKey),
+            path = "auth/mobile/provision",
+            headers = mapOf("X-Mobile-API-Key" to mobileApiKey),
             body = request
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Provision a mobile app session (Flow variant).
-     *
-     * @param request Mobile provisioning details
-     * @param mobileAPIKey Mobile API key for authentication
-     * @return Flow emitting the full session response
-     */
-    fun provisionMobileFlow(
-        request: MobileProvisionRequest,
-        mobileAPIKey: String
-    ): Flow<SessionResponse> = flow {
-        emit(provisionMobile(request, mobileAPIKey))
+        return client.sendResult(endpoint)
     }
 
     // ========================================================================
@@ -248,22 +155,12 @@ class AuthAPI(private val client: APIClient) {
      *
      * @return Message confirming logout
      */
-    suspend fun logout(): MessageResponse {
+    suspend fun logout(): ApiResult<MessageResponse> {
         val endpoint = endpoint<MessageResponse>(
             method = HTTPMethod.POST,
-            path = "/v1/auth/logout",
-            body = EmptyBody
+            path = "auth/logout"
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * End the current session (logout) (Flow variant).
-     *
-     * @return Flow emitting the logout confirmation message
-     */
-    fun logoutFlow(): Flow<MessageResponse> = flow {
-        emit(logout())
+        return client.sendResult(endpoint)
     }
 
     /**
@@ -274,53 +171,12 @@ class AuthAPI(private val client: APIClient) {
      *
      * @return Current user context
      */
-    suspend fun getMe(): MeResponse {
+    suspend fun getMe(): ApiResult<MeResponse> {
         val endpoint = endpoint<MeResponse>(
             method = HTTPMethod.GET,
-            path = "/v1/auth/me"
+            path = "auth/me"
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Get current user information and context (Flow variant).
-     *
-     * @return Flow emitting the current user context
-     */
-    fun getMeFlow(): Flow<MeResponse> = flow {
-        emit(getMe())
-    }
-
-    /**
-     * Refresh an existing session using a refresh token.
-     *
-     * This is used by the AuthProvider implementation to handle token refresh.
-     * Requires authentication.
-     *
-     * @param request Refresh token request
-     * @return New session tokens
-     */
-    suspend fun refreshSession(
-        request: SessionRefreshRequest
-    ): SessionRefreshResponse {
-        val endpoint = endpoint<SessionRefreshResponse>(
-            method = HTTPMethod.POST,
-            path = "/v1/auth/session/refresh",
-            body = request
-        )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Refresh an existing session using a refresh token (Flow variant).
-     *
-     * @param request Refresh token request
-     * @return Flow emitting the new session tokens
-     */
-    fun refreshSessionFlow(
-        request: SessionRefreshRequest
-    ): Flow<SessionRefreshResponse> = flow {
-        emit(refreshSession(request))
+        return client.sendResult(endpoint)
     }
 
     // ========================================================================
@@ -335,23 +191,13 @@ class AuthAPI(private val client: APIClient) {
      * @param request Profile update details
      * @return Updated user information
      */
-    suspend fun updateProfile(request: UpdateProfileRequest): UserInfo {
-        val endpoint = endpoint<UserInfo>(
+    suspend fun updateProfile(request: UpdateProfileRequest): ApiResult<UserInfo> {
+        val endpoint = endpoint<UpdateProfileRequest, UserInfo>(
             method = HTTPMethod.PATCH,
-            path = "/v1/auth/me/profile",
+            path = "auth/me/profile",
             body = request
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Update the current user's profile (Flow variant).
-     *
-     * @param request Profile update details
-     * @return Flow emitting the updated user information
-     */
-    fun updateProfileFlow(request: UpdateProfileRequest): Flow<UserInfo> = flow {
-        emit(updateProfile(request))
+        return client.sendResult(endpoint)
     }
 
     // ========================================================================
@@ -362,56 +208,34 @@ class AuthAPI(private val client: APIClient) {
      * Send an OTP code to a phone number.
      *
      * The phone number must be in E.164 format (e.g., "+14155551234").
-     * Rate limited to 3 requests per hour per phone number.
      * Requires authentication.
      *
-     * @param request Phone number to send OTP to
-     * @return Method ID for OTP verification
+     * @param request Phone number to send the OTP to
+     * @return Whether the OTP was sent
      */
-    suspend fun sendPhoneOtp(request: SendPhoneOtpRequest): PhoneOtpResponse {
-        val endpoint = endpoint<PhoneOtpResponse>(
+    suspend fun sendPhoneOtp(request: SendPhoneOtpRequest): ApiResult<PhoneOtpResponse> {
+        val endpoint = endpoint<SendPhoneOtpRequest, PhoneOtpResponse>(
             method = HTTPMethod.POST,
-            path = "/v1/auth/phone/send-otp",
+            path = "auth/phone/send-otp",
             body = request
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Send an OTP code to a phone number (Flow variant).
-     *
-     * @param request Phone number to send OTP to
-     * @return Flow emitting the method ID for OTP verification
-     */
-    fun sendPhoneOtpFlow(request: SendPhoneOtpRequest): Flow<PhoneOtpResponse> = flow {
-        emit(sendPhoneOtp(request))
+        return client.sendResult(endpoint)
     }
 
     /**
      * Verify a phone OTP code.
      *
-     * The OTP code is valid for 30 minutes.
      * Requires authentication.
      *
-     * @param request Method ID and OTP code
-     * @return Updated user information with verified phone
+     * @param request Phone number and OTP code
+     * @return Updated user information with the verified phone
      */
-    suspend fun verifyPhoneOtp(request: VerifyPhoneOtpRequest): UserInfo {
-        val endpoint = endpoint<UserInfo>(
+    suspend fun verifyPhoneOtp(request: VerifyPhoneOtpRequest): ApiResult<UserInfo> {
+        val endpoint = endpoint<VerifyPhoneOtpRequest, UserInfo>(
             method = HTTPMethod.POST,
-            path = "/v1/auth/phone/verify-otp",
+            path = "auth/phone/verify-otp",
             body = request
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Verify a phone OTP code (Flow variant).
-     *
-     * @param request Method ID and OTP code
-     * @return Flow emitting the updated user information with verified phone
-     */
-    fun verifyPhoneOtpFlow(request: VerifyPhoneOtpRequest): Flow<UserInfo> = flow {
-        emit(verifyPhoneOtp(request))
+        return client.sendResult(endpoint)
     }
 }

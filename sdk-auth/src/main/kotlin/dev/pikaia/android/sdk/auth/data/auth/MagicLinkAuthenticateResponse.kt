@@ -6,15 +6,19 @@ import kotlinx.serialization.Serializable
 /**
  * Response from magic link authentication.
  *
- * Contains an interim session token and list of organizations the user belongs to.
- * The client must then select an organization and exchange the interim token for a full session.
+ * Carries an intermediate session token plus the organizations the user can enter.
+ * The client must select (or create) an organization and exchange the token for a
+ * full session.
  *
- * @param interimSessionToken Temporary token for organization selection
- * @param organizations List of organizations the user can access
+ * @param intermediateSessionToken Token to use with the discovery endpoints
+ * @param email Authenticated user's email address
+ * @param discoveredOrganizations Organizations available to this user
  */
 @Serializable
 data class MagicLinkAuthenticateResponse(
-    @SerialName("interim_session_token")
-    val interimSessionToken: String,
-    val organizations: List<OrganizationInfo>
+    @SerialName("intermediate_session_token")
+    val intermediateSessionToken: String,
+    val email: String,
+    @SerialName("discovered_organizations")
+    val discoveredOrganizations: List<DiscoveredOrganization>
 )
