@@ -6,12 +6,13 @@ import kotlinx.serialization.Serializable
 /**
  * Request to verify a phone OTP code.
  *
- * @param methodId Method ID from the send OTP response
- * @param code The 6-digit OTP code
+ * @param phoneNumber Phone number the code was sent to, in E.164 format
+ * @param otpCode The one-time code from the SMS
  */
 @Serializable
 data class VerifyPhoneOtpRequest(
-    @SerialName("method_id")
-    val methodId: String,
-    val code: String
+    @SerialName("phone_number")
+    val phoneNumber: String,
+    @SerialName("otp_code")
+    val otpCode: String
 )

@@ -4,22 +4,24 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * User information.
+ * Cross-organization user identity.
  *
- * @param userId Unique user identifier
+ * @param id Local database user ID
  * @param email User's email address
  * @param name User's display name
- * @param phoneNumber User's phone number
- * @param phoneVerified Whether the phone number has been verified
+ * @param avatarUrl URL to the user's avatar image
+ * @param phoneNumber Phone number in E.164 format ("" when not set)
+ * @param syncWarning Server-reported sync warning, if any
  */
 @Serializable
 data class UserInfo(
-    @SerialName("user_id")
-    val userId: Int,
-    val email: String?,
-    val name: String?,
+    val id: Long,
+    val email: String,
+    val name: String,
+    @SerialName("avatar_url")
+    val avatarUrl: String = "",
     @SerialName("phone_number")
-    val phoneNumber: String?,
-    @SerialName("phone_verified")
-    val phoneVerified: Boolean
+    val phoneNumber: String = "",
+    @SerialName("sync_warning")
+    val syncWarning: String? = null
 )

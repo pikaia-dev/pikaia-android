@@ -4,15 +4,18 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Request to create a new organization during discovery flow.
+ * Request to create a new organization during the discovery flow.
  *
- * @param interimSessionToken Interim token from magic link authentication
- * @param organizationName Name for the new organization
+ * @param intermediateSessionToken Token from magic link authentication
+ * @param organizationName Display name for the new organization
+ * @param organizationSlug URL-safe identifier (lowercase, hyphens allowed)
  */
 @Serializable
 data class DiscoveryCreateOrgRequest(
-    @SerialName("interim_session_token")
-    val interimSessionToken: String,
+    @SerialName("intermediate_session_token")
+    val intermediateSessionToken: String,
     @SerialName("organization_name")
-    val organizationName: String
+    val organizationName: String,
+    @SerialName("organization_slug")
+    val organizationSlug: String
 )

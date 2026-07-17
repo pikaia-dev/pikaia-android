@@ -4,16 +4,19 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Member information within an organization.
+ * Organization-scoped membership details.
  *
- * @param memberId Unique member identifier
- * @param role Member's role (e.g., "admin", "member")
- * @param status Member's status (e.g., "active", "inactive")
+ * @param id Local database member ID
+ * @param stytchMemberId Stytch member ID
+ * @param role Member role (e.g. "admin" or "member")
+ * @param isAdmin Whether the member has admin privileges
  */
 @Serializable
 data class MemberInfo(
-    @SerialName("member_id")
-    val memberId: String,
+    val id: Long,
+    @SerialName("stytch_member_id")
+    val stytchMemberId: String,
     val role: String,
-    val status: String
+    @SerialName("is_admin")
+    val isAdmin: Boolean
 )

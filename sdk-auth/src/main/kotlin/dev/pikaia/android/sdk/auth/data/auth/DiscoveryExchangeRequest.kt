@@ -4,15 +4,16 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Request to exchange interim session for a full session with selected organization.
+ * Request to exchange an intermediate session token for a full session in the
+ * selected organization.
  *
- * @param interimSessionToken Interim token from magic link authentication
- * @param organizationId ID of the organization to access
+ * @param intermediateSessionToken Token from magic link authentication
+ * @param organizationId Stytch ID of the organization to enter
  */
 @Serializable
 data class DiscoveryExchangeRequest(
-    @SerialName("interim_session_token")
-    val interimSessionToken: String,
+    @SerialName("intermediate_session_token")
+    val intermediateSessionToken: String,
     @SerialName("organization_id")
     val organizationId: String
 )
