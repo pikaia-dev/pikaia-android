@@ -1,7 +1,6 @@
 package dev.pikaia.android.sdk.sync.api
 
 import dev.pikaia.android.sdk.core.networking.APIClient
-import dev.pikaia.android.sdk.core.networking.EmptyBody
 import dev.pikaia.android.sdk.core.networking.HTTPMethod
 import dev.pikaia.android.sdk.core.networking.endpoint
 import dev.pikaia.android.sdk.sync.data.request.SyncPushRequest
@@ -36,9 +35,9 @@ class SyncAPI(private val client: APIClient) {
      * @return Response with per-operation results
      */
     suspend fun push(request: SyncPushRequest): SyncPushResponse {
-        val endpoint = endpoint<SyncPushResponse>(
+        val endpoint = endpoint<SyncPushRequest, SyncPushResponse>(
             method = HTTPMethod.POST,
-            path = "/v1/sync/push",
+            path = "sync/push",
             body = request
         )
         return client.send(endpoint)
@@ -87,7 +86,7 @@ class SyncAPI(private val client: APIClient) {
 
         val endpoint = endpoint<SyncPullResponse>(
             method = HTTPMethod.GET,
-            path = "/v1/sync/pull",
+            path = "sync/pull",
             query = queryParams.toMap()
         )
         return client.send(endpoint)
