@@ -1,5 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.ksp)
     `maven-publish`
 }
 
@@ -8,9 +10,7 @@ version = project.findProperty("pikaia.sdk.version") as String? ?: "0.1.0-SNAPSH
 
 android {
     namespace = "dev.pikaia.android.sdk_sync"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26
@@ -32,6 +32,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
     publishing {
         singleVariant("release") {
             withSourcesJar()
@@ -41,10 +46,31 @@ android {
 }
 
 dependencies {
+    // SDK Core
+    api(project(":sdk-core"))
+
+    // Android Core
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
+
+    // Room for local persistence
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    // WorkManager for background sync
+    implementation(libs.androidx.work.runtime.ktx)
+
+    // Coroutines (inherited from core but explicit for clarity)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
+
+    // Kotlinx Serialization (inherited from core)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
+
+    // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
@@ -58,6 +84,9 @@ afterEvaluate {
                 artifactId = "sdk-sync"
                 version = project.version.toString()
             }
+        }
+        repositories {
+            mavenLocal()
         }
     }
 }

@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlinSerialization)
     `maven-publish`
 }
 
@@ -7,10 +8,8 @@ group = "dev.pikaia.android"
 version = project.findProperty("pikaia.sdk.version") as String? ?: "0.1.0-SNAPSHOT"
 
 android {
-    namespace = "dev.pikaia.android.sdk_auth"
-    compileSdk {
-        version = release(36)
-    }
+    namespace = "dev.pikaia.android.sdk.auth"
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26
@@ -41,10 +40,29 @@ android {
 }
 
 dependencies {
+    // SDK Core
+    api(project(":sdk-core"))
+
+    // Android Core
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
+
+    // DataStore for secure token storage
+    implementation(libs.androidx.datastore.preferences)
+
+    // Security (for encrypted DataStore wrapper)
+    implementation(libs.androidx.security.crypto)
+
+    // Coroutines (inherited from core but explicit for clarity)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
+
+    // Kotlinx Serialization (inherited from core)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
+
+    // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
@@ -58,6 +76,9 @@ afterEvaluate {
                 artifactId = "sdk-auth"
                 version = project.version.toString()
             }
+        }
+        repositories {
+            mavenLocal()
         }
     }
 }
