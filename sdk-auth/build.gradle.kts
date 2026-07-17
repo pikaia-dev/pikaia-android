@@ -46,11 +46,8 @@ dependencies {
     // Android Core
     implementation(libs.androidx.core.ktx)
 
-    // DataStore for secure token storage
+    // DataStore for secure token storage (values encrypted via Android Keystore)
     implementation(libs.androidx.datastore.preferences)
-
-    // Security (for encrypted DataStore wrapper)
-    implementation(libs.androidx.security.crypto)
 
     // Coroutines (inherited from core but explicit for clarity)
     implementation(libs.kotlinx.coroutines.core)
@@ -63,6 +60,7 @@ dependencies {
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.ktor.client.mock)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
