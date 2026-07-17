@@ -19,6 +19,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Backend base URL including the API prefix; override per environment with
+        // -Ppikaia.api.baseUrl=https://your-backend/api/v1
+        val baseUrl = (project.findProperty("pikaia.api.baseUrl") as String?)
+            ?: "https://api.example.com/api/v1"
+        buildConfigField("String", "PIKAIA_API_BASE_URL", "\"$baseUrl\"")
     }
 
     buildTypes {
@@ -36,10 +42,16 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
+    // Merge SDK module coverage into this module's kover report (CI reads one XML)
+    kover(project(":sdk-core"))
+    kover(project(":sdk-auth"))
+    kover(project(":sdk-sync"))
+
     // Pikaia SDK BOM
     implementation(platform(project(":sdk-bom")))
 
@@ -70,6 +82,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
+    testImplementation(libs.ktor.client.mock)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

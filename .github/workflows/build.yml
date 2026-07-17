@@ -38,7 +38,9 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Build, run tests & generate coverage report
-        run: ./gradlew :pikaia-app:koverXmlReportDebug --no-daemon
+        # testDebugUnitTest runs every module's unit tests; the pikaia-app kover
+        # report merges SDK module coverage (see kover(project(...)) dependencies)
+        run: ./gradlew testDebugUnitTest :pikaia-app:koverXmlReportDebug --no-daemon
 
       - name: Add coverage report to PR
         id: kover
@@ -55,4 +57,5 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
-          files: pikaia-app/build/test-results/**/*.xml
+          files: |
+            **/build/test-results/**/*.xml
