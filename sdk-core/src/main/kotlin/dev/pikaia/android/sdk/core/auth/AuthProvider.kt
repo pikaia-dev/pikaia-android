@@ -1,22 +1,19 @@
 package dev.pikaia.android.sdk.core.auth
 
 /**
- * Abstraction for authentication token refresh logic.
+ * Abstraction for session refresh logic.
  *
- * Implementations should provide the logic to refresh authentication tokens
- * when they expire. This allows the API client to automatically refresh
- * tokens on 401 responses.
- *
- * This interface will be fully implemented in sdk-auth module.
+ * Implementations exchange the current (possibly expired) session for a fresh one so the
+ * API client can automatically recover from 401 responses. See sdk-auth's
+ * `DeviceSessionAuthProvider` for the device-linked session implementation.
  */
 interface AuthProvider {
     /**
-     * Refresh authentication tokens using the refresh token.
+     * Refresh the given session and return its replacement.
      *
-     * @param refreshToken The refresh token to use
-     * @return A pair of (access token, new refresh token). The new refresh token
-     *         may be null if the server doesn't issue a new one.
-     * @throws Exception if token refresh fails
+     * @param current The session that failed authentication
+     * @return The refreshed session
+     * @throws Exception if the session cannot be refreshed (e.g. it was revoked or fully expired)
      */
-    suspend fun refreshTokens(refreshToken: String): Pair<String, String?>
+    suspend fun refreshSession(current: AuthSession): AuthSession
 }
