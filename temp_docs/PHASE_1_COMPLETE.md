@@ -128,7 +128,7 @@ kotlinx-coroutines-android = { ... }
 ```kotlin
 // Configure the client
 val config = APIClientConfig(
-    baseUrl = "https://api.joinsnowball.io",
+    baseUrl = "https://api.example.com",
     enableLogging = BuildConfig.DEBUG
 )
 

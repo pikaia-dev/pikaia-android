@@ -91,7 +91,7 @@ val tokenStore = DataStoreTokenStore(context)
 val refreshCoordinator = DefaultRefreshCoordinator()
 
 val apiClient = APIClient(
-    baseURL = "https://api.joinsnowball.io/api",
+    baseURL = "https://api.example.com/api",
     authProvider = MyAuthProvider(tokenStore),
     refreshCoordinator = refreshCoordinator,
     requestInterceptors = listOf(
@@ -115,7 +115,7 @@ val sendResponse = authAPI.sendMagicLink(sendRequest)
 // sendResponse.message: "Magic link sent"
 
 // Step 2: User clicks link in email, extract token
-// (Token comes from deep link: snowball://auth?token=abc123)
+// (Token comes from deep link: yourapp://auth?token=abc123)
 
 // Step 3: Authenticate with token
 val authRequest = MagicLinkAuthenticateRequest(token = "abc123")
@@ -365,4 +365,4 @@ The module depends on:
 
 - [EXAMPLE.md](EXAMPLE.md) - Complete working examples
 - [sdk-core README](../sdk-core/README.md) - Core networking documentation
-- [API Documentation](https://api.joinsnowball.io/api/v1/docs) - Backend API reference
+- [API Documentation](https://api.example.com/api/v1/docs) - Backend API reference

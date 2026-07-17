@@ -2361,7 +2361,7 @@ class PikaiaApp : Application() {
             androidContext(this@PikaiaApp)
             modules(
                 sdkCoreModule(
-                    baseUrl = "https://api.joinsnowball.io",
+                    baseUrl = "https://api.example.com",
                     enableLogging = BuildConfig.DEBUG
                 ),
                 sdkAuthModule,

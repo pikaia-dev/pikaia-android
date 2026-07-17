@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 3 implements the offline-first sync engine that enables data synchronization between the Android app and the Pikaia backend. This follows the iOS SDK architecture with Android-specific adaptations, based on production-proven patterns from the iOS Snowball app.
+Phase 3 implements the offline-first sync engine that enables data synchronization between the Android app and the Pikaia backend. This follows the iOS SDK architecture with Android-specific adaptations, based on production-proven patterns from the iOS platform app.
 
 **Important**: This SDK is **generic** and does NOT implement app-specific entity types (like `crm.contact`, `crm.tag`, etc.). Entity types are registered by the consuming application.
 
@@ -125,7 +125,7 @@ sdk-sync/
 
 ## Key Findings from iOS Implementation
 
-Based on analysis of production iOS Snowball app (see `IOS_SDK_USAGE_ANALYSIS.md`):
+Based on analysis of production iOS platform app (see `IOS_SDK_USAGE_ANALYSIS.md`):
 
 ### Critical Patterns
 
@@ -157,7 +157,7 @@ Based on analysis of production iOS Snowball app (see `IOS_SDK_USAGE_ANALYSIS.md
 
 ### Entity Types (App-Specific, NOT in SDK)
 
-The SDK is **generic** - it does NOT hardcode entity types. In the Snowball iOS app, these types are registered:
+The SDK is **generic** - it does NOT hardcode entity types. In the iOS platform app, these types are registered:
 - `crm.contact` - Customer records
 - `crm.tag` - Tags
 - `crm.contact_tag` - Relationships

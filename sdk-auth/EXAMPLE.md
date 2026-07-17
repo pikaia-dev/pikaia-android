@@ -29,7 +29,7 @@ class PikaiaSdkManager(private val context: Context) {
     }
 
     val apiClient: APIClient = APIClient(
-        baseURL = "https://api.joinsnowball.io/api",
+        baseURL = "https://api.example.com/api",
         authProvider = authProvider,
         refreshCoordinator = refreshCoordinator,
         requestInterceptors = listOf(
@@ -359,7 +359,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent) {
         val data = intent.data
-        if (data?.scheme == "snowball" && data.host == "auth") {
+        if (data?.scheme == "yourapp" && data.host == "auth") {
             val token = data.getQueryParameter("token")
             if (token != null) {
                 viewModel.authenticateWithToken(token)
@@ -373,7 +373,7 @@ class MainActivity : ComponentActivity() {
 //     <action android:name="android.intent.action.VIEW" />
 //     <category android:name="android.intent.category.DEFAULT" />
 //     <category android:name="android.intent.category.BROWSABLE" />
-//     <data android:scheme="snowball" android:host="auth" />
+//     <data android:scheme="yourapp" android:host="auth" />
 // </intent-filter>
 ```
 

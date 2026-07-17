@@ -32,7 +32,7 @@ import dev.pikaia.android.sdk.core.networking.APIClientConfig
 import kotlin.time.Duration.Companion.seconds
 
 val config = APIClientConfig(
-    baseUrl = "https://api.joinsnowball.io",
+    baseUrl = "https://api.example.com",
     defaultHeaders = mapOf(
         "Content-Type" to "application/json",
         "X-Client-Version" to "1.0.0"

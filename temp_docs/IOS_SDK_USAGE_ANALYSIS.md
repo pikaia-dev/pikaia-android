@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document analyzes how the Pikaia SDK is actually used in the Snowball iOS application, providing insights for the Android implementation. The analysis covers initialization patterns, authentication flows, sync patterns, and answers critical design questions.
+This document analyzes how the Pikaia SDK is actually used in a production iOS platform implementation, providing insights for the Android implementation. The analysis covers initialization patterns, authentication flows, sync patterns, and answers critical design questions.
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@ This document analyzes how the Pikaia SDK is actually used in the Snowball iOS a
 ## SDK Initialization
 
 ### Location
-`Snowball/Dependencies/Container/AppContainer.swift:86-125`
+`PlatformApp/Dependencies/Container/AppContainer.swift:86-125`
 
 ### Pattern: Dependency Injection with Factory
 
@@ -84,7 +84,7 @@ mediaAPI.register {
 
 ### Device Provisioning Flow
 
-**Location**: `Snowball/Dependencies/Implementation/API/AuthAPIAdapter.swift:65-89`
+**Location**: `PlatformApp/Dependencies/Implementation/API/AuthAPIAdapter.swift:65-89`
 
 ```swift
 // Called once on first app launch
@@ -141,7 +141,7 @@ The app uses **device provisioning only** for authentication.
 
 ### Initialization
 
-**Location**: `Snowball/Dependencies/Container/AppContainer.swift:127-192`
+**Location**: `PlatformApp/Dependencies/Container/AppContainer.swift:127-192`
 
 ```swift
 syncEngine.register { @MainActor in
@@ -198,7 +198,7 @@ The app syncs 4 entity types:
 
 ### Syncable Store Pattern
 
-**Location**: `Snowball/Dependencies/Sync/SyncableStore/SyncableContactStore.swift`
+**Location**: `PlatformApp/Dependencies/Sync/SyncableStore/SyncableContactStore.swift`
 
 **Pattern**: Decorator pattern wrapping base stores
 
@@ -287,7 +287,7 @@ final class SyncableContactStore: ContactStore {
 
 ### Sync Scheduler
 
-**Location**: `Snowball/Dependencies/Sync/SyncScheduler.swift`
+**Location**: `PlatformApp/Dependencies/Sync/SyncScheduler.swift`
 
 **Purpose**: Debounces and coalesces sync requests
 
@@ -344,7 +344,7 @@ final class SyncScheduler {
 
 ### Entity Change Handlers
 
-**Location**: `Snowball/Dependencies/Sync/EntityChangeHandlers/ContactChangeHandler.swift`
+**Location**: `PlatformApp/Dependencies/Sync/EntityChangeHandlers/ContactChangeHandler.swift`
 
 **Purpose**: Apply server changes to local database
 
@@ -395,7 +395,7 @@ struct ContactChangeHandler: EntityChangeHandler {
 
 ### Sync Backfill Service
 
-**Location**: `Snowball/Dependencies/Sync/SyncBackfillService.swift`
+**Location**: `PlatformApp/Dependencies/Sync/SyncBackfillService.swift`
 
 **Purpose**: One-time migration of existing local data to sync engine
 
