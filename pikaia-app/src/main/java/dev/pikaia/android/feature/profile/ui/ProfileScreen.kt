@@ -33,6 +33,7 @@ import org.koin.androidx.compose.koinViewModel
 fun ProfileScreen(
     navController: NavHostController,
     goToLogin: () -> Unit,
+    goToDevices: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ProfileViewModel = koinViewModel()
 ) {
@@ -49,6 +50,7 @@ fun ProfileScreen(
         navController = navController,
         state = state,
         actionHandler = viewModel::handleAction,
+        goToDevices = goToDevices,
         modifier = modifier
     )
 }
@@ -58,6 +60,7 @@ private fun ProfileScreenContent(
     navController: NavHostController,
     state: ProfileState,
     actionHandler: (ProfileAction) -> Unit,
+    goToDevices: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -105,6 +108,15 @@ private fun ProfileScreenContent(
             }
 
             Spacer(modifier = Modifier.weight(1f))
+
+            if (state.profile != null) {
+                Button(
+                    modifier = Modifier.padding(bottom = MaterialTheme.spacings.d8),
+                    onClick = goToDevices
+                ) {
+                    Text(text = stringResource(R.string.profile_devices_btn))
+                }
+            }
 
             Button(
                 modifier = Modifier.padding(bottom = MaterialTheme.spacings.d32),
