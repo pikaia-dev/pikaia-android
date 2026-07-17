@@ -1,159 +1,90 @@
-# SDK Core Module
+# sdk-core
 
-Core networking and authentication infrastructure for the Pikaia Android SDK.
+Networking foundation for the Pikaia Android SDKs: a type-safe Ktor client, declarative
+endpoints, non-throwing results, typed errors, and the session-based auth abstractions
+that `sdk-auth` implements.
 
-## Overview
+## Consumption contract
 
-The `sdk-core` module provides the foundational networking layer used by all other SDK modules. It includes:
+The SDKs model only the surface shared by every product built on the pikaia backend
+stack. Product-specific endpoints (whatever a product's backend fork adds) live in the
+consuming app, built on this module's `APIClient` — see [EXAMPLE.md](EXAMPLE.md).
+Product-specific values are configuration, never SDK constants:
 
-- **HTTP Client**: Type-safe API client built on Ktor
-- **Interceptor System**: Request and response interceptor pipelines
-- **Error Handling**: Comprehensive error types with metadata
-- **Authentication Interfaces**: Token storage and refresh coordination (implemented in `sdk-auth`)
+- `baseUrl` carries the backend's full API prefix (e.g. `https://api.example.com/api/v1`);
+  endpoint paths are relative (`auth/me`, `devices/`).
+- Deep-link schemes (e.g. for device-link QR codes) belong to the consumer.
 
-## Key Components
-
-### APIClient
-
-The main HTTP client that executes API requests with automatic token refresh.
+## APIClient
 
 ```kotlin
-val config = APIClientConfig(
-    baseUrl = "https://api.example.com",
-    enableLogging = true
-)
-
 val client = APIClient(
-    config = config,
-    httpClient = HttpClient(OkHttp) { /* ... */ },
-    requestInterceptors = listOf(/* ... */),
-    responseInterceptors = listOf(/* ... */),
-    tokenStore = tokenStore,
-    authProvider = authProvider,
-    refreshCoordinator = refreshCoordinator
+    config = APIClientConfig(baseUrl = "https://api.example.com/api/v1"),
+    requestInterceptors = listOf(/* e.g. AuthTokenInterceptor from sdk-auth */),
+    tokenStore = tokenStore,             // optional: enables the 401-refresh path
+    authProvider = authProvider,         // optional: performs the session refresh
+    refreshCoordinator = coordinator,    // optional: coalesces concurrent refreshes
+    engine = null                        // injectable for tests (MockEngine)
 )
 
-// Make a request
-val response = client.send(endpoint)
+val result: ApiResult<MeResponse> = client.sendResult(endpoint)
 ```
 
-### Endpoint
+`sendResult` is the single public request path. On a 401 with the auth wiring present,
+the client refreshes the session through the coordinator, persists it, and retries the
+request exactly once — never in a loop.
 
-Type-safe endpoint definition for API operations.
+## Endpoints
 
 ```kotlin
-val endpoint = Endpoint(
+// Bodiless
+val me = endpoint<MeResponse>(HTTPMethod.GET, "auth/me")
+
+// With a JSON body
+val send = endpoint<MagicLinkSendRequest, MessageResponse>(
     method = HTTPMethod.POST,
-    path = "/v1/users",
-    body = CreateUserRequest(name = "John"),
-    responseSerializer = UserResponse.serializer()
-)
-
-// Or use the convenience function with type inference
-val endpoint = endpoint<UserResponse>(
-    method = HTTPMethod.GET,
-    path = "/v1/users/123"
+    path = "auth/magic-link/send",
+    body = MagicLinkSendRequest(email = "jane@example.com")
 )
 ```
 
-### Interceptors
+## Results and errors
 
-Interceptors allow you to modify requests and observe responses.
+Every call folds into `ApiResult` — no exceptions to catch:
 
-**Request Interceptor:**
 ```kotlin
-class AuthTokenInterceptor(private val tokenStore: TokenStore) : RequestInterceptor {
-    override suspend fun adapt(request: HttpRequestBuilder): HttpRequestBuilder {
-        val token = tokenStore.getAccessToken()
-        if (token != null) {
-            request.header("Authorization", "Bearer $token")
-        }
-        return request
+when (val result = client.sendResult(me)) {
+    is ApiResult.Success -> render(result.value)
+    is ApiResult.Failure -> when (val error = result.error) {
+        is APIError.Http -> show(error.detail ?: "HTTP ${error.statusCode}")
+        is APIError.RateLimited -> scheduleRetry(error.retryAfter)
+        is APIError.Transport -> showOffline()
+        is APIError.Decoding -> report(error)
+        is APIError.RefreshFailed -> goToLogin()
     }
 }
 ```
 
-**Response Interceptor:**
-```kotlin
-class MetricsInterceptor : ResponseInterceptor {
-    override suspend fun handle(
-        response: HttpResponse,
-        data: String?,
-        request: HttpRequest
-    ) {
-        // Log metrics, record analytics, etc.
-    }
-}
-```
+The backend reports errors as a uniform `{"detail": "..."}` body; the parsed message is
+available as `APIError.Http.detail` (and on `RateLimited`, together with the parsed
+`Retry-After` header). `getOrThrow()` is the escape hatch when throwing semantics fit
+better.
 
-### Error Handling
+## Auth abstractions
 
-All API errors are represented as sealed classes:
+`AuthSession` models the backend's Stytch-based session: `sessionJwt` (short-lived
+bearer credential), `sessionToken` (opaque long-lived session), optional
+`sessionExpiresAt` and `deviceUuid`. Three interfaces around it — `TokenStore`
+(persistence), `AuthProvider` (refresh), `RefreshCoordinator` (coalescing) — are
+implemented in `sdk-auth`; see that module's README for the canonical assembly.
 
-```kotlin
-try {
-    val response = client.send(endpoint)
-} catch (e: APIError) {
-    when (e) {
-        is APIError.Unauthorized -> // Handle auth error
-        is APIError.Client -> // Handle 4xx error
-        is APIError.Server -> // Handle 5xx error
-        is APIError.Transport -> // Handle network error
-        is APIError.Decoding -> // Handle JSON parsing error
-        // ... other error types
-    }
-}
-```
+## Interceptors
 
-## Authentication Interfaces
-
-The core module defines authentication interfaces that are implemented in `sdk-auth`:
-
-- **TokenStore**: Secure storage for access and refresh tokens
-- **AuthProvider**: Logic for refreshing expired tokens
-- **RefreshCoordinator**: Coalesces concurrent refresh requests
-
-## Usage in Other Modules
-
-Other SDK modules depend on `sdk-core` for networking:
-
-```kotlin
-// In sdk-auth module
-class AuthAPI(private val client: APIClient) {
-    suspend fun login(email: String): SessionResponse {
-        val endpoint = endpoint<SessionResponse>(
-            method = HTTPMethod.POST,
-            path = "/v1/auth/login",
-            body = LoginRequest(email)
-        )
-        return client.send(endpoint)
-    }
-}
-```
-
-## Dependencies
-
-- **Ktor Client**: Modern HTTP client with coroutines support
-- **Kotlinx Serialization**: Type-safe JSON serialization
-- **Kotlinx Datetime**: Date/time handling
-- **Coroutines**: Async programming
+`RequestInterceptor.adapt(builder)` mutates outgoing requests (auth headers, tracing);
+`ResponseInterceptor.handle(response, body, request)` observes responses.
+`LogRequestInterceptor`/`LogResponseInterceptor` are provided for debugging.
 
 ## Testing
 
-Unit tests are provided for:
-- Request building and URL construction
-- Error handling and status code mapping
-- Interceptor pipeline execution
-- Metadata extraction
-
-Run tests:
-```bash
-./gradlew :sdk-core:test
-```
-
-## Thread Safety
-
-All components are designed to be thread-safe:
-- APIClient can be shared across coroutines
-- Interceptors should be stateless or use proper synchronization
-- Token refresh is coordinated to prevent race conditions (via RefreshCoordinator)
+The engine is constructor-injectable, so unit tests run against Ktor's `MockEngine`
+without touching the network — every SDK test suite in this repo works this way.
