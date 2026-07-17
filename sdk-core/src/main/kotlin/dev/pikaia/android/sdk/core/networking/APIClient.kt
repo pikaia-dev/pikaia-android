@@ -66,24 +66,25 @@ class APIClient(
         if (engine != null) HttpClient(engine, clientSetup) else HttpClient(clientSetup)
 
     /**
-     * Send an HTTP request and return the decoded response.
+     * Send an HTTP request and fold the outcome into an [ApiResult].
      *
-     * @param endpoint The endpoint definition
-     * @return The decoded response
-     * @throws APIError if the request fails
-     */
-    suspend fun <Req, Res> send(endpoint: Endpoint<Req, Res>): Res {
-        return send(endpoint, allowRefresh = true)
-    }
-
-    /**
-     * Non-throwing variant of [send].
+     * This is the single public request path — every failure arrives as a typed
+     * [ApiResult.Failure] instead of an exception.
      *
      * @param endpoint The endpoint definition
      * @return [ApiResult.Success] with the decoded response, or [ApiResult.Failure]
      */
     suspend fun <Req, Res> sendResult(endpoint: Endpoint<Req, Res>): ApiResult<Res> =
         apiResult { send(endpoint) }
+
+    /**
+     * Throwing variant of [sendResult], kept module-internal (and visible to tests).
+     *
+     * @throws APIError if the request fails
+     */
+    internal suspend fun <Req, Res> send(endpoint: Endpoint<Req, Res>): Res {
+        return send(endpoint, allowRefresh = true)
+    }
 
     /**
      * Internal send method with refresh control.

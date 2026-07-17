@@ -1,32 +1,22 @@
 package dev.pikaia.android.sdk.sync.api
 
 import dev.pikaia.android.sdk.core.networking.APIClient
+import dev.pikaia.android.sdk.core.networking.ApiResult
 import dev.pikaia.android.sdk.core.networking.HTTPMethod
 import dev.pikaia.android.sdk.core.networking.endpoint
 import dev.pikaia.android.sdk.sync.data.request.SyncPushRequest
 import dev.pikaia.android.sdk.sync.data.response.SyncPullResponse
 import dev.pikaia.android.sdk.sync.data.response.SyncPushResponse
-import io.ktor.http.URLBuilder
-import io.ktor.http.Url
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 
 /**
  * Sync API client providing push/pull endpoints.
  *
- * Handles data synchronization with the Pikaia backend.
- *
- * Each endpoint provides two variants:
- * - Suspend function for direct await usage
- * - Flow-based function for reactive streams
+ * Paths are relative — the [APIClient]'s `baseUrl` must carry the backend's API prefix
+ * (e.g. `https://api.example.com/api/v1`).
  *
  * @param client The underlying API client for making HTTP requests
  */
 class SyncAPI(private val client: APIClient) {
-
-    // ========================================================================
-    // Push Operations
-    // ========================================================================
 
     /**
      * Push a batch of operations to the server.
@@ -34,36 +24,17 @@ class SyncAPI(private val client: APIClient) {
      * @param request Batch of operations to sync
      * @return Response with per-operation results
      */
-    suspend fun push(request: SyncPushRequest): SyncPushResponse {
+    suspend fun push(request: SyncPushRequest): ApiResult<SyncPushResponse> {
         val endpoint = endpoint<SyncPushRequest, SyncPushResponse>(
             method = HTTPMethod.POST,
             path = "sync/push",
             body = request
         )
-        return client.send(endpoint)
+        return client.sendResult(endpoint)
     }
-
-    /**
-     * Push a batch of operations to the server (Flow variant).
-     *
-     * @param request Batch of operations to sync
-     * @return Flow emitting the response
-     */
-    fun pushFlow(request: SyncPushRequest): Flow<SyncPushResponse> = flow {
-        emit(push(request))
-    }
-
-    // ========================================================================
-    // Pull Operations
-    // ========================================================================
 
     /**
      * Pull changes from the server.
-     *
-     * Uses query parameters for filtering:
-     * - since: Cursor from previous pull (pagination)
-     * - entity_types: Comma-separated list of entity types to filter
-     * - limit: Maximum number of changes to return
      *
      * @param since Cursor from previous pull (null for initial pull)
      * @param entityTypes Optional list of entity types to filter
@@ -74,8 +45,7 @@ class SyncAPI(private val client: APIClient) {
         since: String? = null,
         entityTypes: List<String>? = null,
         limit: Int? = null
-    ): SyncPullResponse {
-        // Build query parameters
+    ): ApiResult<SyncPullResponse> {
         val queryParams = buildList {
             since?.let { add("since" to it) }
             entityTypes?.takeIf { it.isNotEmpty() }?.let {
@@ -89,22 +59,6 @@ class SyncAPI(private val client: APIClient) {
             path = "sync/pull",
             query = queryParams.toMap()
         )
-        return client.send(endpoint)
-    }
-
-    /**
-     * Pull changes from the server (Flow variant).
-     *
-     * @param since Cursor from previous pull (null for initial pull)
-     * @param entityTypes Optional list of entity types to filter
-     * @param limit Maximum number of changes to return
-     * @return Flow emitting the response
-     */
-    fun pullFlow(
-        since: String? = null,
-        entityTypes: List<String>? = null,
-        limit: Int? = null
-    ): Flow<SyncPullResponse> = flow {
-        emit(pull(since, entityTypes, limit))
+        return client.sendResult(endpoint)
     }
 }
