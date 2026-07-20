@@ -9,6 +9,27 @@
     <string name="profile_screen_title">Profile</string>
     <string name="profile_logout_btn">Logout</string>
     <string name="profile_login_btn">Login</string>
+    <string name="profile_devices_btn">Linked devices</string>
 
     <string name="home_screen_title">Home</string>
+
+    <string name="login_screen_title">Sign in</string>
+    <string name="login_email_label">Email address</string>
+    <string name="login_send_link_btn">Send magic link</string>
+    <string name="login_token_hint">We sent you a sign-in link. Open it on this device or paste the token below.</string>
+    <string name="login_token_label">Magic link token</string>
+    <string name="login_verify_btn">Verify</string>
+    <string name="login_pick_org_hint">Choose an organization to continue.</string>
+    <string name="login_create_org_hint">No organizations found for this account — create one to continue.</string>
+    <string name="login_org_name_label">Organization name</string>
+    <string name="login_org_slug_label">Organization slug</string>
+    <string name="login_create_org_btn">Create organization</string>
+
+    <string name="devices_screen_title">Linked devices</string>
+    <string name="devices_link_btn">Link a device</string>
+    <string name="devices_refresh_session_btn">Refresh session</string>
+    <string name="devices_session_refreshed">Session refreshed</string>
+    <string name="devices_revoke_btn">Revoke</string>
+    <string name="devices_empty_hint">No linked devices yet.</string>
+    <string name="devices_link_hint">Render this URL as a QR code and scan it from the device to link (expires in %1$d s):</string>
 </resources>

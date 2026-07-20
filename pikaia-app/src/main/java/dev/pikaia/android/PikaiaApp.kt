@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.pm.ApplicationInfo
 import dev.pikaia.android.activity.di.activityModule
 import dev.pikaia.android.di.appModule
+import dev.pikaia.android.di.sdkModule
 import dev.pikaia.android.feature.di.featureModules
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext.startKoin
@@ -28,6 +29,7 @@ class PikaiaApp : Application() {
             androidContext(this@PikaiaApp)
 
             modules(appModule)
+            modules(sdkModule)
             modules(activityModule)
 
             modules(featureModules)
